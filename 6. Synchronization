@@ -1,0 +1,75 @@
+## 6. Process Synchronization Tools
+
+### 6-1 Background
+
+- cooperation process: thread처럼 logical address space를 공유하거나, shared memory 등을 통해서 데이터를 주고 받을 때 생기는 문제들을 살펴봄.
+- **문제: shared된 데이터에 concurrent 하게 접근할 때는 data inconsistency 문제가 발생 할 수 있음.**
+- **해결책: cooperating한 프로세스가 동시에 실행될 때, 함수가 순서대로 실행되도록 보장되어야 함. → logical address space 상에서의 data consistency를 유지하기 위해.**
+- **integration of data shared by several processes or threads.**
+    - **concurrent execution: cooperation** 프로세스들 사이에서 언제 어디서나 concurrent 문제가 생길 수 있음. context switch 과정에서 interrupt가 발생해서 instruction stream의 어디에서 문제가 생길 수 있음. 따라서 **integration of data는 process/thread에서 데이터를 공유할 때 항상 고려해야 하는 문제.**
+    - **parallel execution**: **여러 개의 프로세스가 동시에 분리된 CPU에서 실행이 되면 항상 동기화 문제가 발생함.**
+    - ex) **producer consumer problem:** 데이터를 상호 간에 공유함. 중간에 buffer를 사용. 이를 shared memory나 message queue로 구현 가능 → **비동기적으로 동작.**
+        - 문제: **concurrent하게 동작을 하면 문제가 발생. parallel하게 작동할 때는 문제가 없음. 하지만 2개의 core에서 p/q가 concurrent할 때는 buffer의 item에서 문제가 발생**
+- 왜 이런 문제가 일어날까?
+    - resister를 +1하는 thread1과 resister를 -1하는 thread2를 가 제대로 작동하면 0이 되야 함. 하지만 **어디서 context switch가 발생했냐에 따라서 +1이 될 수도 -1이 될 수도 있음**. interrupt handler가 save하고 restore하는 과정에서 변수가 마음대로 변함.
+    - 어떤 **순서로 실행되냐에 따라 코드가 어떻게 끼어들어(interleaved) 있으면, data의 integrity가 깨짐.**
+- **Race Condition**: data integration 문제/상황을 일반화 시킬 수 있음.
+    - 프로세스나 쓰레드가 어떤 데이터를 공유하고 있는데, 이걸 concurrent하게 실행하면 결과는 어떤 순서에 따라서 access가 일어나는가에 따라서 달라짐.
+    - ex) 계좌 이체에서도 race condition이 발생함. 입금과 출금이 동시에 일어나는 경우. 만일 출금을 했는데 입금을 못하면 문제가 발생함. deadlock과 연결되어 있는 부분이기도 함.
+- **Synchronization: race condition을 해결하는 방법**
+    - 방법: 특정 시간에 어떤 한 프로세스만 shared data를 다룰 수 있게 하면 해결 됨.
+    - 데이터 access하는 부분을 순차적으로 실행될 수 있도록 만든다.
+
+### 6-2. The critical section problem
+
+- 임계영역 문제으로 data integration 문제를 정의할 수 있음.
+    - n개의 process가 있을 때, **어떤 segment of code를 critical section이라고 부름.**
+    - 이 영역에서 shared data를 update하면, 이것이 **다른 프로세스와 공유되어 있으면 critical section이라고 부름.**
+    - **critical section problem의 기능**
+        - 1개의 프로세스가 어떤의 critical section을 실행중이면, **다른 process들은 critical section에 진입하지 못하게 함.**
+- **The critical section problem**
+    - **critical section을 동시에 실행시키지 않는다고 하면, sysnchronization이 동시에 일어나며, cooperatively shared data가 가능.**
+    - code 영역을 4가지로 나눠보자.
+        - **entry section: 특정 critical section에 진입하는 코드 영역: 진입을 요청하는 코드**
+        - **critical section**
+        - **exit section: 요청을 반납하는 영역**
+        - remainder section: 나머지 영역
+- **3가지 요구사항(requirement)**
+    1. **Mutual Exclusion(상호배제)**: 어떤 **프로세스가 있으면, 이게 실행 중일 때 다른 프로세스들은 critical section에 진입할 수 없음.** - 가장 기본적인 요소지만 **deadlock이나 starvation문제가 발생할 수 있음.** 
+    2. **Progress: Deadlock이 발생하면 안됨.** 
+        - **deadlock**: 어떤 프로세스가 critical section에 있으면, **critical section에 진입하기 위해서 무한대로 기다려야 하는 상황 - 차후 추가적인 설명**
+    3. **Bounded Waiting: statvation이 발생하면 안됨. 어느 정도 기다리는 대기 시간을 한정**시켜야 함. 
+        - **Starvation: critical section이 있는 과정에서 특정 process는 끊임없이 기다려야 하는 경우.**
+    - 이 조건이 전부 만족되야 하지만, 이 세가지 조건을 충족시키는 게 어렵기에, 제한적으로 해결한다. 아니면 발생하면 해결하는 방식을 사용한다.
+- single-core에서 해결책
+    - interrupt가 일어나지 않도록 함.
+    - 하지만 이 방법은 조금만 복잡해지면 실행할 수 없음. preemption을 사용할 수 없음. 특히 multi processor 환경에서는 실행하기 어렵고 시스템 성능이 떨어짐.
+    - 동기화 영역이 긴 경우. multi process의 장점이 전부 사라짐
+- 보다 일반적인 해결책
+    - **preemptive kernel vs non preemptive kernel**
+    - non preemptive kernel
+        - 어떤 kernel 모드에 진입을 하면 내려놓을 때까지 cpu를 계속 쓰게 해주기에 race condition이 발생하지 않음. → 하지만 실질적으로 사용하지 않음.
+    - preemptive kernel
+        - **process가 언제든지 선점 가능. 훨씬 더 responsive하기에 사용함.**
+        - 따라서 여러 해결책들이 있음.
+
+### 6-3 Peterson Solution
+
+- Software solution to Critical section Problem
+    - Dekker`s Algorithm
+    - Eisenberg and McGuire Algorithm
+    - **Peterson`s Algorithm**
+        - **임계영역 문제를 가장 완벽하게 해결했지만, guarantees가 없음. load and store architecture에서 사용하는 것에서 오는 문제점이기에.**
+- **Peterson`s Algorithm**
+    - 2개의 프로세스로 execution을 제한함.
+    - critical section과 remainder section으로 제한.
+    - mutual exclusion, progress, bounded waiting모두 보완 가능.
+- Hardware based Solution
+
+### 6-4 Hardware Support for Synchronization
+
+- **Atomicity**
+    - 더 이상 interrupt 할 수 없는 operation의 단위.
+    - special hardware instruction을 통해서 이를  atomic instruction을 만드는 게 가능.
+    - instruction을 쪼개지 않고, 하나로 만드는 게 가능.
+- Atomic variable
